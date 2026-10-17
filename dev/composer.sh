@@ -2,15 +2,25 @@
 
 set -euo pipefail
 
-PACMAN_FLAGS=(--needed --noconfirm)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+options=()
+packages=()
 
-echo "=> Installing Composer..."
-sudo pacman -Syu "${PACMAN_FLAGS[@]}" php composer
+for argument in "$@"; do
+    case "$argument" in
+        --dry-run|-h|--help)
+            options+=("$argument")
+            ;;
+        --)
+            ;;
+        -*)
+            printf 'Unknown option: %s\n' "$argument" >&2
+            exit 1
+            ;;
+        *)
+            packages+=("$argument")
+            ;;
+    esac
+done
 
-if [ "$#" -eq 0 ]; then
-    echo "Composer installed. Pass package names to install global Composer packages."
-    exit 0
-fi
-
-echo "=> Installing global Composer packages..."
-composer global require "$@"
+exec "$SCRIPT_DIR/bootstrap" install composer "${options[@]}" -- "${packages[@]}"

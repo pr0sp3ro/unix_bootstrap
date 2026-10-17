@@ -1,0 +1,7 @@
+tmux-git
+keepmenu-git
+jmtpfs
+zsh-fast-syntax-highlighting
+zsh-system-clipboard-git
+htop-vim
+noto-color-emoji-fontconfig

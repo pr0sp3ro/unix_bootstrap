@@ -2,132 +2,38 @@
 
 set -euo pipefail
 
-PACMAN_FLAGS=(--needed --noconfirm)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+desktop_module=desktop-sway
+selected_backend=''
+options=()
 
-pacman_packages=(
-    "i3-wm"
-    "i3status"
-    "polkit"
-    "stow"
-    "picom"
-    "arandr"
-    "exfat-utils"
-    "ntfs-3g"
-    "maim"
-    "unclutter"
-    "unzip"
-    "xcape"
-    "xclip"
-    "yt-dlp"
-    "xsecurelock"
-    "zathura"
-    "zathura-pdf-mupdf"
-    "poppler"
-    "fzf"
-    "lf"
-    # "gparted"
-    "ueberzugpp"
-    "mediainfo"
-    "bat"
-    "ffmpeg"
-    "ffmpegthumbnailer"
-    "odt2txt"
-    "atool"
-    "mpd"
-    "mpv"
-    "mpc"
-    "ncmpcpp"
-    "dunst"
-    "libnotify"
-    "moreutils"
-    "findutils"
-    "gawk"
-    "ripgrep"
-    "highlight"
-    "less"
-    "lua"
-    "pinentry"
-    "sed"
-    "unrar"
-    "zip"
-    "tzdata"
-    "whois"
-    "xwallpaper"
-    "ninja"
-    "direnv"
-    "nodejs"
-    "npm"
-    "wmname"
-    "go"
-    "telegram-desktop"
-    "signal-desktop"
-    "thunderbird"
-    "chromium"
-    "firefox"
-    "gtk3"
-    "gtk4"
-    "lxappearance"
-    "qt5ct"
-    "python-qdarkstyle"
-    # "ttf-linux-libertine"
-    "ttf-font-awesome"
-    # "ttf-dejavu"
-    "ttc-iosevka"
-    "noto-fonts"
-    "noto-fonts-emoji"
-    "python"
-    "python-pip"
-    "lazygit"
-    "btop"
-    "keepassxc"
-    "fd"
-    #"ttf-jetbrains-mono"
-    "ttf-hack-nerd"
-    "dust"
-    "github-cli"
-    "xdotool"
-)
+for argument in "$@"; do
+    case "$argument" in
+        --wayland|--xorg)
+            if [[ -n $selected_backend && $selected_backend != "$argument" ]]; then
+                echo 'Select either --wayland or --xorg.' >&2
+                exit 1
+            fi
 
-sudo pacman -Syu "${PACMAN_FLAGS[@]}" "${pacman_packages[@]}" || exit 1
+            selected_backend=$argument
 
-paru_packages=(
-    "gtk2"
-    "tmux-git"
-    "keepmenu-git"
-    "jmtpfs"
-    "zsh-fast-syntax-highlighting"
-    "zsh-system-clipboard-git"
-    # "simple-mtpfs"
-    "htop-vim"
-    # "task-spooler"
-    # "abook"
-    "nsxiv"
-    "mmv-go"
-    "veracrypt-console-bin"
-    "brave-bin"
-    "obsidian-bin"
-    "antigravity"
-    "catppuccin-gtk-theme-git"
-    "noto-color-emoji-fontconfig"
-)
-
-for paru_package in "${paru_packages[@]}"; do
-    paru -S --needed --noconfirm "$paru_package"
+            if [[ $argument == --xorg ]]; then
+                desktop_module=desktop-i3
+            fi
+            ;;
+        --dry-run)
+            options+=("$argument")
+            ;;
+        -h|--help)
+            echo 'Usage: ./install_desktop.sh [--wayland|--xorg] [--dry-run]'
+            echo 'Default: Wayland with Sway. Xorg uses i3.'
+            exit 0
+            ;;
+        *)
+            printf 'Unknown option: %s\n' "$argument" >&2
+            exit 1
+            ;;
+    esac
 done
 
-echo -e "\n=> Ensuring required zsh plugins are installed..."
-paru -S --needed --noconfirm zsh-fast-syntax-highlighting zsh-system-clipboard-git || exit 1
-
-echo -e "\n=> Installing Codex CLI (@openai/codex)..."
-if npm install -g @openai/codex; then
-    echo "Codex CLI install complete."
-else
-    echo "Retrying Codex CLI install with sudo..."
-    sudo npm install -g @openai/codex || exit 1
-fi
-
-echo -e "\nlsblk"
-echo "sudo mount -t vfat /dev/sdbX /mnt/second-usb -o rw,umask=0000"
-echo -e "git@github.com:<username>/<repo>\n"
-
-echo -e "\nSuccess"
+exec "$SCRIPT_DIR/bootstrap" install "$desktop_module" "${options[@]}"

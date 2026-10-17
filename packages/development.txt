@@ -1,0 +1,13 @@
+git
+base-devel
+cmake
+go
+socat
+nodejs
+npm
+ninja
+direnv
+python
+python-pip
+lazygit
+github-cli

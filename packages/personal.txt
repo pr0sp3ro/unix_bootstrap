@@ -1,0 +1,11 @@
+stow
+firefox
+lxappearance
+mpc
+mpd
+ncmpcpp
+python-qdarkstyle
+qt5ct
+thunderbird
+ttc-iosevka
+imv

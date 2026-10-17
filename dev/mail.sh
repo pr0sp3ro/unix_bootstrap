@@ -2,12 +2,6 @@
 
 set -euo pipefail
 
-# paru -S mailhog-bin
-# paru -S mailpit
-paru -S --noconfirm mailpit-bin
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# sudo systemctl enable --now mailhog
-sudo systemctl enable --now mailpit
-
-# go install github.com/mailhog/MailHog@latest
-# go install github.com/axllent/mailpit@latest
+exec "$SCRIPT_DIR/bootstrap" install mail "$@"

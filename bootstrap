@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+current_module=preflight
+operation=arguments
+
+trap 'printf "Error in %s during %s (line %s).\n" "$current_module" "$operation" "$LINENO" >&2' ERR
+
+available_modules=(
+    base
+    desktop-i3
+    desktop-sway
+    development
+    docker
+    bluetooth
+    audio
+    aur-helper
+    hardware-amd-nvidia
+    php
+    composer
+    nginx
+    apache
+    mariadb
+    postgres
+    mail
+    betterdmenu
+    neovim-source
+    personal
+)
+
+selected_modules=()
+official_packages=()
+aur_packages=()
+composer_packages=()
+dry_run=0
+
+fail() {
+    printf 'Error in %s during %s: %s\n' "$current_module" "$operation" "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'HELP'
+Usage: ./bootstrap list
+       ./bootstrap install <modules...> [--dry-run]
+       ./bootstrap install composer [--dry-run] [-- <global-packages...>]
+       ./bootstrap -h|--help
+
+Configure an existing Arch Linux x86_64 system. No disk installation.
+No arguments show this help. All installation plans require confirmation.
+Desktop choices: desktop-sway (Wayland) or desktop-i3 (Xorg).
+HELP
+}
+
+contains() {
+    local expected=$1
+    local item
+    shift
+
+    for item in "$@"; do
+        if [[ $item == "$expected" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+add_module() {
+    local name=$1
+
+    if contains "$name" "${selected_modules[@]}"; then
+        return 0
+    fi
+
+    if ! contains "$name" "${available_modules[@]}"; then
+        fail "Unknown module: $name"
+    fi
+
+    case "$name" in
+        desktop-i3|desktop-sway|development|docker|bluetooth|audio|personal)
+            add_module base
+            ;;
+        nginx|apache|composer)
+            add_module php
+            ;;
+    esac
+
+    if [[ -f $SCRIPT_DIR/packages/$name.aur.txt ]]; then
+        add_module aur-helper
+    fi
+
+    selected_modules+=("$name")
+}
+
+# Parse the command before inspecting the host or loading local configuration.
+if [[ $# == 0 ]]; then
+    usage
+    exit 0
+fi
+
+case "$1" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    list)
+        if [[ $# != 1 ]]; then
+            fail 'list takes no arguments'
+        fi
+
+        printf '%s\n' "${available_modules[@]}"
+        exit 0
+        ;;
+    install)
+        shift
+        ;;
+    *)
+        usage
+        fail 'Unknown command'
+        ;;
+esac
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            dry_run=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            composer_packages+=("$@")
+            break
+            ;;
+        -*)
+            fail "Unknown option: $1"
+            ;;
+        *)
+            add_module "$1"
+            ;;
+    esac
+
+    shift
+done
+
+if [[ ${#selected_modules[@]} == 0 ]]; then
+    fail 'Select at least one module'
+fi
+
+if [[ ${#composer_packages[@]} -gt 0 ]]; then
+    if ! contains composer "${selected_modules[@]}"; then
+        fail 'Package arguments require composer'
+    fi
+
+    for package in "${composer_packages[@]}"; do
+        if [[ $package == -* ]]; then
+            fail 'Composer options are not accepted'
+        fi
+    done
+fi
+
+if contains nginx "${selected_modules[@]}" && contains apache "${selected_modules[@]}"; then
+    fail 'Select either nginx or apache'
+fi
+
+if contains desktop-sway "${selected_modules[@]}" && contains desktop-i3 "${selected_modules[@]}"; then
+    fail 'Select either desktop-sway (Wayland) or desktop-i3 (Xorg)'
+fi
+
+# Load trusted configuration and validate paths used by the selected modules.
+# shellcheck source=config.sh
+source "$SCRIPT_DIR/config.sh"
+
+if [[ -f $SCRIPT_DIR/config.local.sh ]]; then
+    source "$SCRIPT_DIR/config.local.sh"
+fi
+
+if [[ -z $GIT_DIR || -z $TMP_DIR ]]; then
+    fail 'GIT_DIR and TMP_DIR must not be empty'
+fi
+
+if [[ $GIT_DIR != /* || $TMP_DIR != /* ]]; then
+    fail 'GIT_DIR and TMP_DIR must be absolute paths'
+fi
+
+if contains personal "${selected_modules[@]}" || contains betterdmenu "${selected_modules[@]}"; then
+    if [[ ! $GIT_USERNAME =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
+        fail 'Invalid GitHub username'
+    fi
+fi
+
+# Collect package lists, including shared tools for either desktop variant.
+for module in "${selected_modules[@]}"; do
+    package_files=(
+        "$SCRIPT_DIR/packages/$module.txt"
+        "$SCRIPT_DIR/packages/$module.aur.txt"
+    )
+
+    case "$module" in
+        desktop-i3|desktop-sway)
+            package_files+=("$SCRIPT_DIR/packages/desktop-common.txt")
+            ;;
+    esac
+
+    for package_file in "${package_files[@]}"; do
+        if [[ ! -f $package_file ]]; then
+            continue
+        fi
+
+        while IFS= read -r package || [[ -n $package ]]; do
+            if [[ -z $package || $package == \#* ]]; then
+                continue
+            fi
+
+            if [[ $package_file == *.aur.txt ]]; then
+                if ! contains "$package" "${aur_packages[@]}"; then
+                    aur_packages+=("$package")
+                fi
+            else
+                if ! contains "$package" "${official_packages[@]}"; then
+                    official_packages+=("$package")
+                fi
+            fi
+        done < "$package_file"
+    done
+done
+
+for script in services hardware databases source-builds; do
+    source "$SCRIPT_DIR/modules/$script.sh"
+done
+
+# Host checks are read-only and also apply to dry runs.
+operation='system checks'
+
+if [[ $EUID == 0 ]]; then
+    fail 'Run as a regular user, not root'
+fi
+
+if [[ ! -f /etc/os-release ]]; then
+    fail 'Missing /etc/os-release'
+fi
+
+# shellcheck disable=SC1091
+source /etc/os-release
+
+if [[ $ID != arch || $(uname -m) != x86_64 ]]; then
+    fail 'Only Arch Linux x86_64 is supported'
+fi
+
+if [[ ! -d /run/systemd/system ]]; then
+    fail 'A running systemd system is required'
+fi
+
+for command in sudo pacman systemctl git mktemp; do
+    if ! command -v "$command" >/dev/null; then
+        fail "Missing command: $command"
+    fi
+done
+
+preflight_services
+preflight_sources
+
+if contains hardware-amd-nvidia "${selected_modules[@]}"; then
+    preflight_hardware
+fi
+
+# Hardware inspection can add packages. Deduplicate the final list.
+unique_packages=()
+
+for package in "${official_packages[@]}"; do
+    if ! contains "$package" "${unique_packages[@]}"; then
+        unique_packages+=("$package")
+    fi
+done
+
+official_packages=("${unique_packages[@]}")
+
+if [[ ${#official_packages[@]} -gt 0 ]]; then
+    if ! pacman -Si "${official_packages[@]}" >/dev/null; then
+        fail 'Official packages unavailable in local sync databases. Review repositories and perform a full upgrade manually.'
+    fi
+fi
+
+# Show the complete plan before requesting privileges or making changes.
+printf 'Modules: %s\n' "${selected_modules[*]}"
+
+if [[ ${#official_packages[@]} -gt 0 ]]; then
+    echo 'Package operation: full system upgrade and installation (pacman -Syu --needed).'
+fi
+
+printf 'Official packages: %s\n' "${official_packages[*]:-(none)}"
+printf 'AUR packages (review build files): %s\n' "${aur_packages[*]:-(none)}"
+
+plan_services
+plan_sources
+plan_databases
+
+if [[ ${#composer_packages[@]} -gt 0 ]]; then
+    printf 'Composer global require: %s\n' "${composer_packages[*]}"
+fi
+
+if contains hardware-amd-nvidia "${selected_modules[@]}"; then
+    plan_hardware
+fi
+
+if (( dry_run )); then
+    exit 0
+fi
+
+read -r -p 'Apply this plan? [y/N] ' answer
+
+if [[ $answer != y && $answer != Y ]]; then
+    echo 'Cancelled.'
+    exit 0
+fi
+
+# Apply the confirmed plan. Errors stop execution without rolling back changes.
+operation='sudo authentication'
+sudo -v
+
+current_module=packages
+operation='official package installation'
+
+if [[ ${#official_packages[@]} -gt 0 ]]; then
+    sudo pacman -Syu --needed "${official_packages[@]}"
+fi
+
+if contains aur-helper "${selected_modules[@]}"; then
+    current_module=aur-helper
+    install_paru
+fi
+
+if [[ ${#aur_packages[@]} -gt 0 ]]; then
+    current_module=AUR
+    operation='AUR package installation'
+    paru -S --needed --review --failfast --nouseask "${aur_packages[@]}"
+fi
+
+for current_module in "${selected_modules[@]}"; do
+    operation='module configuration'
+    configure_services "$current_module"
+    configure_databases "$current_module"
+    configure_sources "$current_module"
+
+    if [[ $current_module == hardware-amd-nvidia ]]; then
+        configure_hardware
+    fi
+done
+
+echo 'Complete. Read any restart or login instructions above.'

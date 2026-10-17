@@ -1,0 +1,5 @@
+docker
+docker-compose
+lazydocker
+dive
+trivy

@@ -1,0 +1,15 @@
+sway
+swaybg
+swayidle
+swaylock
+i3status
+mako
+grim
+slurp
+wl-clipboard
+foot
+wmenu
+xdg-desktop-portal
+xdg-desktop-portal-wlr
+xdg-desktop-portal-gtk
+pipewire

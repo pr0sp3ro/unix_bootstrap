@@ -1,0 +1,7 @@
+base-devel
+cmake
+ninja
+curl
+gettext
+git
+unzip
