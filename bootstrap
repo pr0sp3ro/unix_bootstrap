@@ -25,7 +25,7 @@ available_modules=(
     mariadb
     postgres
     mail
-    betterdmenu
+    mnu
     neovim-source
     personal
 )
@@ -188,7 +188,7 @@ if [[ $GIT_DIR != /* || $TMP_DIR != /* ]]; then
     fail 'GIT_DIR and TMP_DIR must be absolute paths'
 fi
 
-if contains personal "${selected_modules[@]}" || contains betterdmenu "${selected_modules[@]}"; then
+if contains personal "${selected_modules[@]}" || contains mnu "${selected_modules[@]}"; then
     if [[ ! $GIT_USERNAME =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
         fail 'Invalid GitHub username'
     fi

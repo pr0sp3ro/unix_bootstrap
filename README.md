@@ -64,7 +64,7 @@ upgrades are [unsupported by Arch](https://wiki.archlinux.org/title/System_maint
 | `mariadb` | Initializes an empty data directory, starts MariaDB, optionally creates a localhost account without grants. |
 | `postgres` | Initializes an empty cluster, starts PostgreSQL, enables PHP PostgreSQL extensions. |
 | `mail` | Installs Mailpit from AUR and starts its service. |
-| `betterdmenu` | Builds betterdmenu from HTTPS. No GitHub account or SSH key is needed for a public repository. |
+| `mnu` | Builds mnu from HTTPS. No GitHub account or SSH key is needed for a public repository. |
 | `neovim-source` | Builds the stable branch of Neovim and installs into `/usr/local`. Running editors remain open. |
 | `personal` | Personal applications, imv, AUR choices and bin(scripts) repository. Includes `base`. |
 
@@ -129,7 +129,7 @@ Both configuration files are sourced as trusted Bash code. `GIT_DIR` and
 checkout on exit.
 
 `GIT_USERNAME` defaults to `pr0sp3ro` and is used only for `personal` and
-`betterdmenu`. Changing it requires that the corresponding public repositories
+`mnu`. Changing it requires that the corresponding public repositories
 exist. Other modules do not clone repositories from that account. Existing
 checkouts must have the expected HTTPS origin. They are preserved without pulling
 or resetting local work. Migrate old SSH origins manually if appropriate.
@@ -138,15 +138,15 @@ Examples:
 
 ```bash
 ./bootstrap install development docker audio
-./bootstrap install betterdmenu --dry-run
-./bootstrap install betterdmenu
+./bootstrap install mnu --dry-run
+./bootstrap install mnu
 ./bootstrap install composer --dry-run -- laravel/installer
 ./bootstrap install composer -- laravel/installer
 ./bootstrap install neovim-source
 ```
 
 Source builds install files outside pacman's ownership. Neovim uses `/usr/local`.
-Betterdmenu uses its Makefile installation prefix. Review its source and build
+Mnu uses its Makefile installation prefix. Review its source and build
 settings before installation. Global Composer packages also execute upstream
 package code as your user.
 
@@ -202,7 +202,7 @@ and `--xorg` for i3. Docker, audio, Bluetooth and personal
 applications require separate explicit selections. The other install and `dev/`
 scripts select their corresponding module.
 
-`build_betterdmenu.sh` builds betterdmenu. `build_suckless.sh` remains a compatibility
+`build_mnu.sh` builds mnu. `build_suckless.sh` remains a compatibility
 wrapper for the same module, without component selection flags.
 `dev/composer.sh laravel/installer` preserves the old global-package interface.
 Wrappers accept `--dry-run`, `-h` and `--help`.

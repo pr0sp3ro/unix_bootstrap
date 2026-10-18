@@ -26,8 +26,8 @@ preflight_sources() {
         check_repo "https://github.com/$GIT_USERNAME/scripts.git" "$HOME/.local/scripts"
     fi
 
-    if contains betterdmenu "${selected_modules[@]}"; then
-        check_repo "https://github.com/$GIT_USERNAME/betterdmenu.git" "$GIT_DIR/betterdmenu"
+    if contains mnu "${selected_modules[@]}"; then
+        check_repo "https://github.com/$GIT_USERNAME/mnu.git" "$GIT_DIR/mnu"
     fi
 }
 
@@ -40,8 +40,8 @@ plan_sources() {
         echo 'Build Neovim stable from HTTPS in a unique temporary directory, install to /usr/local. Running editors remain open.'
     fi
 
-    if contains betterdmenu "${selected_modules[@]}"; then
-        printf 'Build https://github.com/%s/betterdmenu.git under %s/betterdmenu. Install to its Makefile prefix.\n' "$GIT_USERNAME" "$GIT_DIR"
+    if contains mnu "${selected_modules[@]}"; then
+        printf 'Build https://github.com/%s/mnu.git under %s/mnu. Install to its Makefile prefix.\n' "$GIT_USERNAME" "$GIT_DIR"
     fi
 
     if contains personal "${selected_modules[@]}"; then
@@ -100,10 +100,10 @@ configure_sources() {
         neovim-source)
             build_neovim
             ;;
-        betterdmenu)
-            clone_repo "https://github.com/$GIT_USERNAME/betterdmenu.git" "$GIT_DIR/betterdmenu"
-            make -C "$GIT_DIR/betterdmenu"
-            sudo make -C "$GIT_DIR/betterdmenu" install
+        mnu)
+            clone_repo "https://github.com/$GIT_USERNAME/mnu.git" "$GIT_DIR/mnu"
+            make -C "$GIT_DIR/mnu"
+            sudo make -C "$GIT_DIR/mnu" install
             ;;
         composer)
             if [[ ${#composer_packages[@]} -gt 0 ]]; then
