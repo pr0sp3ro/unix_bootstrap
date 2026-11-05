@@ -3,3 +3,4 @@ git
 libx11
 libxft
 libxinerama
+xorg-xwayland

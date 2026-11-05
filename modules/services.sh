@@ -39,11 +39,8 @@ plan_services() {
                 echo 'Enable/start: NetworkManager. Install Zsh without changing login shells.'
                 ;;
             desktop-sway)
-                echo 'Desktop: Wayland with Sway, swaybar/i3status, Mako, Foot and wmenu.'
-                echo 'Install screenshot, clipboard, lock and portal tools. Configure startup in Sway manually.'
-                ;;
-            desktop-i3)
-                echo 'Desktop: Xorg with i3, i3status, Picom and Dunst. Configure the session manually.'
+                echo 'Desktop: Wayland with Sway, Waybar, Mako, Alacritty, awww and wlsunset.'
+                echo 'Install screenshot, clipboard, lock, keyring and portal tools. Configure startup in Sway manually.'
                 ;;
             docker)
                 printf 'Enable/start: docker. Add %s to docker group (root-equivalent access).\n' "$(id -un)"
@@ -61,7 +58,7 @@ plan_services() {
                 echo 'Enable/start: httpd, php-fpm. Virtual hosts and PHP routing require manual configuration.'
                 ;;
             php)
-                echo 'Enable gd in /etc/php/php.ini. PHP-FPM remains stopped unless a server module is selected.'
+                echo 'Enable gd in /etc/php/conf.d unless already enabled. PHP-FPM remains stopped unless a server module is selected.'
                 ;;
             mail)
                 echo 'Enable/start: mailpit.'
@@ -70,15 +67,24 @@ plan_services() {
     done
 }
 
+# Use conf.d instead of editing php.ini, so package upgrades do not create
+# php.ini.pacnew. Skip extensions already enabled to avoid duplicate loading.
 enable_php_extension() {
-    local file=$1
-    local extension=$2
+    local extension=$1
+    local enabled_pattern="^[[:space:]]*extension[[:space:]]*=[[:space:]]*\"?$extension(\.so)?\"?[[:space:]]*$"
 
-    if [[ ! -f $file ]]; then
-        fail "PHP configuration not found: $file"
+    if [[ ! -d /etc/php/conf.d ]]; then
+        fail 'PHP configuration directory not found: /etc/php/conf.d'
     fi
 
-    sudo sed -i "s/^;[[:space:]]*extension=$extension[[:space:]]*$/extension=$extension/" "$file"
+    if grep -rEqs --include='*.ini' "$enabled_pattern" /etc/php/php.ini /etc/php/conf.d; then
+        return 0
+    fi
+
+    printf 'extension=%s\n' "$extension" | sudo tee "/etc/php/conf.d/$extension.ini" >/dev/null
+
+    # A running PHP-FPM loads extensions only on start.
+    sudo systemctl try-restart php-fpm
 }
 
 configure_services() {
@@ -111,7 +117,7 @@ configure_services() {
             sudo systemctl enable --now httpd php-fpm
             ;;
         php)
-            enable_php_extension /etc/php/php.ini gd
+            enable_php_extension gd
             ;;
         mail)
             sudo systemctl enable --now mailpit

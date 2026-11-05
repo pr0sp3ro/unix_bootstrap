@@ -42,12 +42,8 @@ preflight_hardware() {
             ;;
     esac
 
+    # Legacy AUR branches for pre-Turing GPUs. Current drivers are nvidia-open*.
     local -a conflicting_drivers=(
-        nvidia
-        nvidia-dkms
-        nvidia-lts
-        nvidia-open
-        nvidia-open-lts
         nvidia-580xx-dkms
         nvidia-580xx-utils
     )
@@ -86,13 +82,45 @@ preflight_hardware() {
         fail 'No supported installed kernel found'
     fi
 
+    # Arch ships prebuilt open modules for linux and linux-lts. Other kernels
+    # need DKMS, which conflicts with the prebuilt modules for every kernel.
+    use_dkms=0
+
+    if pacman -Q nvidia-open-dkms >/dev/null 2>&1; then
+        use_dkms=1
+    fi
+
     for kernel in "${kernels[@]}"; do
-        official_packages+=("$kernel-headers")
+        if [[ $kernel != linux && $kernel != linux-lts ]]; then
+            use_dkms=1
+        fi
     done
+
+    if (( use_dkms )); then
+        for old_driver in nvidia-open nvidia-open-lts; do
+            # pacman -Q also matches providers, and nvidia-open-dkms provides nvidia-open.
+            if [[ $(pacman -Qq "$old_driver" 2>/dev/null) == "$old_driver" ]]; then
+                fail "Installed kernels require nvidia-open-dkms, but $old_driver is installed. Migrate the driver manually."
+            fi
+        done
+
+        official_packages+=(nvidia-open-dkms)
+
+        for kernel in "${kernels[@]}"; do
+            official_packages+=("$kernel-headers")
+        done
+    else
+        for kernel in "${kernels[@]}"; do
+            if [[ $kernel == linux ]]; then
+                official_packages+=(nvidia-open)
+            else
+                official_packages+=(nvidia-open-lts)
+            fi
+        done
+    fi
 
     official_packages+=(
         amd-ucode
-        nvidia-open-dkms
         nvidia-utils
         nvidia-settings
         opencl-nvidia
@@ -112,7 +140,12 @@ preflight_hardware() {
 
 plan_hardware() {
     printf 'Detected GPU: %s\n' "$gpu_description"
-    echo 'Driver: nvidia-open-dkms with headers for all detected supported kernels. Rebuild initramfs with mkinitcpio -P.'
+    if (( use_dkms )); then
+        echo 'Driver: nvidia-open-dkms with headers for all detected supported kernels. Rebuild initramfs with mkinitcpio -P.'
+    else
+        echo 'Driver: prebuilt nvidia-open modules for the detected kernels (linux, linux-lts). Rebuild initramfs with mkinitcpio -P.'
+    fi
+
     echo 'No bootloader changes or automatic multilib activation. Reboot and verify the driver manually.'
 
     if contains docker "${selected_modules[@]}"; then

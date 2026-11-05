@@ -16,6 +16,6 @@ inetutils
 dialog
 mtools
 dosfstools
-wireless_tools
+iw
 wpa_supplicant
 openvpn

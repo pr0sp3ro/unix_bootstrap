@@ -10,7 +10,6 @@ trap 'printf "Error in %s during %s (line %s).\n" "$current_module" "$operation"
 
 available_modules=(
     base
-    desktop-i3
     desktop-sway
     development
     docker
@@ -50,7 +49,6 @@ Usage: ./bootstrap list
 
 Configure an existing Arch Linux x86_64 system. No disk installation.
 No arguments show this help. All installation plans require confirmation.
-Desktop choices: desktop-sway (Wayland) or desktop-i3 (Xorg).
 HELP
 }
 
@@ -80,7 +78,7 @@ add_module() {
     fi
 
     case "$name" in
-        desktop-i3|desktop-sway|development|docker|bluetooth|audio|personal)
+        desktop-sway|development|docker|bluetooth|audio|personal)
             add_module base
             ;;
         nginx|apache|composer)
@@ -168,10 +166,6 @@ if contains nginx "${selected_modules[@]}" && contains apache "${selected_module
     fail 'Select either nginx or apache'
 fi
 
-if contains desktop-sway "${selected_modules[@]}" && contains desktop-i3 "${selected_modules[@]}"; then
-    fail 'Select either desktop-sway (Wayland) or desktop-i3 (Xorg)'
-fi
-
 # Load trusted configuration and validate paths used by the selected modules.
 # shellcheck source=config.sh
 source "$SCRIPT_DIR/config.sh"
@@ -180,12 +174,12 @@ if [[ -f $SCRIPT_DIR/config.local.sh ]]; then
     source "$SCRIPT_DIR/config.local.sh"
 fi
 
-if [[ -z $GIT_DIR || -z $TMP_DIR ]]; then
-    fail 'GIT_DIR and TMP_DIR must not be empty'
+if [[ -z $PROJECTS_DIR || -z $TMP_DIR ]]; then
+    fail 'PROJECTS_DIR and TMP_DIR must not be empty'
 fi
 
-if [[ $GIT_DIR != /* || $TMP_DIR != /* ]]; then
-    fail 'GIT_DIR and TMP_DIR must be absolute paths'
+if [[ $PROJECTS_DIR != /* || $TMP_DIR != /* ]]; then
+    fail 'PROJECTS_DIR and TMP_DIR must be absolute paths'
 fi
 
 if contains personal "${selected_modules[@]}" || contains mnu "${selected_modules[@]}"; then
@@ -194,18 +188,12 @@ if contains personal "${selected_modules[@]}" || contains mnu "${selected_module
     fi
 fi
 
-# Collect package lists, including shared tools for either desktop variant.
+# Collect package lists.
 for module in "${selected_modules[@]}"; do
     package_files=(
         "$SCRIPT_DIR/packages/$module.txt"
         "$SCRIPT_DIR/packages/$module.aur.txt"
     )
-
-    case "$module" in
-        desktop-i3|desktop-sway)
-            package_files+=("$SCRIPT_DIR/packages/desktop-common.txt")
-            ;;
-    esac
 
     for package_file in "${package_files[@]}"; do
         if [[ ! -f $package_file ]]; then

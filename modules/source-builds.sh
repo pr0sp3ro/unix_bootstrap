@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 
-# Existing checkouts must belong to the requested HTTPS repository.
+# Existing checkouts must belong to the requested repository, over HTTPS or SSH.
 check_repo() {
     local url=$1
     local path=$2
     local origin
+    local ssh_url=$url
+
+    if [[ $url == https://github.com/* ]]; then
+        ssh_url="git@github.com:${url#https://github.com/}"
+    fi
 
     if [[ -e $path || -L $path ]]; then
         if [[ ! -d $path/.git ]]; then
@@ -15,7 +20,9 @@ check_repo() {
             fail "Missing origin: $path"
         fi
 
-        if [[ ${origin%.git} != "${url%.git}" ]]; then
+        origin=${origin%.git}
+
+        if [[ $origin != "${url%.git}" && $origin != "${ssh_url%.git}" ]]; then
             fail "Unexpected origin in $path: $origin"
         fi
     fi
@@ -27,7 +34,7 @@ preflight_sources() {
     fi
 
     if contains mnu "${selected_modules[@]}"; then
-        check_repo "https://github.com/$GIT_USERNAME/mnu.git" "$GIT_DIR/mnu"
+        check_repo "https://github.com/$GIT_USERNAME/mnu.git" "$PROJECTS_DIR/mnu"
     fi
 }
 
@@ -41,7 +48,7 @@ plan_sources() {
     fi
 
     if contains mnu "${selected_modules[@]}"; then
-        printf 'Build https://github.com/%s/mnu.git under %s/mnu. Install to its Makefile prefix.\n' "$GIT_USERNAME" "$GIT_DIR"
+        printf 'Build https://github.com/%s/mnu.git under %s/mnu. Install to its Makefile prefix.\n' "$GIT_USERNAME" "$PROJECTS_DIR"
     fi
 
     if contains personal "${selected_modules[@]}"; then
@@ -92,7 +99,9 @@ build_neovim() (
     trap 'rm -rf -- "$work_dir"' EXIT
     git clone --branch stable --single-branch https://github.com/neovim/neovim.git "$work_dir/neovim"
     make -C "$work_dir/neovim" CMAKE_BUILD_TYPE=RelWithDebInfo
-    sudo make -C "$work_dir/neovim" install
+    # Install only. Running the make target as root could rebuild and leave
+    # root-owned directories that the cleanup trap cannot remove.
+    sudo cmake --install "$work_dir/neovim/build"
 )
 
 configure_sources() {
@@ -101,9 +110,9 @@ configure_sources() {
             build_neovim
             ;;
         mnu)
-            clone_repo "https://github.com/$GIT_USERNAME/mnu.git" "$GIT_DIR/mnu"
-            make -C "$GIT_DIR/mnu"
-            sudo make -C "$GIT_DIR/mnu" install
+            clone_repo "https://github.com/$GIT_USERNAME/mnu.git" "$PROJECTS_DIR/mnu"
+            make -C "$PROJECTS_DIR/mnu"
+            sudo make -C "$PROJECTS_DIR/mnu" install
             ;;
         composer)
             if [[ ${#composer_packages[@]} -gt 0 ]]; then

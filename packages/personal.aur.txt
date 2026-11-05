@@ -1,4 +1,3 @@
-tmux-git
 keepmenu-git
 jmtpfs
 zsh-fast-syntax-highlighting

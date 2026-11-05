@@ -6,7 +6,7 @@ plan_databases() {
     fi
 
     if contains postgres "${selected_modules[@]}"; then
-        echo 'PostgreSQL: initialize only an empty data directory, enable/start postgresql, enable PHP pgsql extensions. Optional role creation remains manual.'
+        echo 'PostgreSQL: initialize only an empty data directory, enable/start postgresql, stop on a major version mismatch, enable PHP pgsql extensions. Optional role creation remains manual.'
     fi
 }
 
@@ -17,6 +17,8 @@ configure_databases() {
     local db_password
     local escaped_password
     local exists
+    local data_version
+    local server_version
 
     case "$1" in
         mariadb)
@@ -77,9 +79,22 @@ configure_databases() {
                 sudo -u postgres initdb --locale=C.UTF-8 --encoding=UTF8 -D /var/lib/postgres/data
             fi
 
+            # A full upgrade can install a new major version over an older cluster.
+            data_version=$(sudo cat /var/lib/postgres/data/PG_VERSION)
+
+            if [[ ! $(postgres --version) =~ ([0-9]+) ]]; then
+                fail 'Cannot determine the installed PostgreSQL version'
+            fi
+
+            server_version=${BASH_REMATCH[1]}
+
+            if [[ $data_version != "$server_version" ]]; then
+                fail "PostgreSQL cluster is version $data_version, server is $server_version. Upgrade it manually with pg_upgrade: https://wiki.archlinux.org/title/PostgreSQL#Upgrading_PostgreSQL"
+            fi
+
             sudo systemctl enable --now postgresql
-            enable_php_extension /etc/php/php.ini pdo_pgsql
-            enable_php_extension /etc/php/php.ini pgsql
+            enable_php_extension pdo_pgsql
+            enable_php_extension pgsql
             echo 'Optional PostgreSQL role: sudo -u postgres createuser --interactive'
             ;;
     esac

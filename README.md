@@ -1,6 +1,6 @@
 # unix_bootstrap
 
-Bash configurator for an existing Arch based Linux workstation. Choose package
+Bash configurator for an existing Arch Linux workstation. Choose package
 and service modules, inspect the plan, and confirm before applying changes.
 
 This project does not partition disks or install Arch Linux. Supported hosts are
@@ -49,22 +49,21 @@ upgrades are [unsupported by Arch](https://wiki.archlinux.org/title/System_maint
 | Module | Packages and behavior |
 | --- | --- |
 | `base` | Common CLI tools, Zsh, networking. Enables NetworkManager. Does not change login shells. |
-| `desktop-sway` | Wayland, Sway, swaybar/i3status, Mako, Foot, wmenu, screenshots, clipboard, locking and desktop portals. Includes `base` and shared desktop utilities. |
-| `desktop-i3` | Xorg, i3, i3status, Picom, Dunst and X11 utilities. Includes `base` and shared desktop utilities. |
+| `desktop-sway` | Wayland, Sway, Waybar, Mako, Alacritty, awww, wlsunset, GNOME Keyring, screenshots, clipboard, locking, desktop portals and desktop utilities. Includes `base`. |
 | `development` | Compilers, CMake, Go, Node.js, Python and developer tools. Includes `base`. |
 | `docker` | Docker and supporting tools. Includes `base`, starts Docker and adds the current user to its group. |
 | `bluetooth` | BlueZ and Blueman. Includes `base`, starts Bluetooth. |
 | `audio` | PipeWire and WirePlumber. Includes `base`, starts user units. |
 | `aur-helper` | Builds paru from AUR if it is missing. Existing paru is kept. |
 | `hardware-amd-nvidia` | Conservative desktop-only AMD CPU and NVIDIA GPU setup. See hardware limitations below. |
-| `php` | PHP, PHP-FPM and GD. Enables GD without starting PHP-FPM. |
+| `php` | PHP, PHP-FPM and GD. Enables GD in `/etc/php/conf.d` without starting PHP-FPM. |
 | `composer` | Includes `php`, installs Composer. Supports optional global packages. |
 | `nginx` | Includes `php`, starts Nginx and PHP-FPM. |
-| `apache` | Includes `php`, installs Apache integration packages, starts httpd and PHP-FPM. |
+| `apache` | Includes `php`, installs Apache, starts httpd and PHP-FPM. |
 | `mariadb` | Initializes an empty data directory, starts MariaDB, optionally creates a localhost account without grants. |
-| `postgres` | Initializes an empty cluster, starts PostgreSQL, enables PHP PostgreSQL extensions. |
+| `postgres` | Initializes an empty cluster, stops on a cluster from an older major version, starts PostgreSQL, enables PHP PostgreSQL extensions. |
 | `mail` | Installs Mailpit from AUR and starts its service. |
-| `mnu` | Builds mnu from HTTPS. No GitHub account or SSH key is needed for a public repository. |
+| `mnu` | Builds mnu from HTTPS and installs Xwayland, which mnu needs under Sway. No GitHub account or SSH key is needed for a public repository. |
 | `neovim-source` | Builds the stable branch of Neovim and installs into `/usr/local`. Running editors remain open. |
 | `personal` | Personal applications, imv, AUR choices and bin(scripts) repository. Includes `base`. |
 
@@ -82,40 +81,29 @@ Nginx and Apache are alternatives. Selecting both, or selecting one while the
 other is installed, enabled or running, fails before installation. Virtual hosts,
 TLS, PHP routing and Apache module configuration remain manual.
 
-## Desktop selection
-
-Choose one desktop variant per invocation:
+## Desktop
 
 ```bash
-./install_desktop.sh --wayland --dry-run
-./install_desktop.sh --wayland
-./install_desktop.sh --xorg
-# Equivalent module interface:
+./bootstrap install desktop-sway --dry-run
 ./bootstrap install desktop-sway
-./bootstrap install desktop-i3
 ```
 
-The desktop wrapper defaults to Wayland with Sway. Selecting both variants in one
-invocation is rejected. Existing desktop packages and configuration are preserved,
-so switching the selected variant does not uninstall the previous environment.
-
-Shared utilities are listed in `packages/desktop-common.txt`. The Sway variant
-omits Xorg-specific tools such as Picom, xclip, maim and xdotool. It does not
-explicitly install Xwayland. Applications and their dependencies may still pull
-in X11 libraries or compatibility components.
+The package list matches the tools started by the Sway configuration in the
+dotfiles. Existing desktop packages and configuration are preserved. Xwayland is
+installed by the `mnu` module, because mnu is an X11 program. Other applications
+may still pull in X11 libraries or compatibility components.
 
 Desktop installation supplies packages, not personal dotfiles or session
 autostart configuration. Start Sway from a TTY with `sway`. Keep the packaged
 `include /etc/sway/config.d/*` in custom Sway configurations for session environment
-integration. Configure Mako, swayidle, swaylock and wallpaper startup yourself.
-PipeWire is included for portal screen sharing, but the `audio` module remains
-an explicit choice for the complete audio setup. See the
+integration. PipeWire is included for portal screen sharing, but the `audio`
+module remains an explicit choice for the complete audio setup. See the
 [Sway guide](https://wiki.archlinux.org/title/Sway) and
 [portal guide](https://wiki.archlinux.org/title/XDG_Desktop_Portal).
 
 ## Configuration
 
-Defaults are in `config.sh`. Existing `GIT_DIR`, `GIT_USERNAME` and `TMP_DIR`
+Defaults are in `config.sh`. Existing `PROJECTS_DIR`, `GIT_USERNAME` and `TMP_DIR`
 environment values are respected. Optional `config.local.sh` overrides defaults
 and is ignored by Git:
 
@@ -123,16 +111,16 @@ and is ignored by Git:
 cp config.example.sh config.local.sh
 ```
 
-Both configuration files are sourced as trusted Bash code. `GIT_DIR` and
-`TMP_DIR` must be absolute paths. The default temporary parent is `$TMPDIR` or
+Both configuration files are sourced as trusted Bash code. `PROJECTS_DIR`
+(default `$HOME/src/git`) and `TMP_DIR` must be absolute paths. The default temporary parent is `$TMPDIR` or
 `/tmp`. Builds use unique subdirectories and remove only their own temporary
 checkout on exit.
 
 `GIT_USERNAME` defaults to `pr0sp3ro` and is used only for `personal` and
 `mnu`. Changing it requires that the corresponding public repositories
 exist. Other modules do not clone repositories from that account. Existing
-checkouts must have the expected HTTPS origin. They are preserved without pulling
-or resetting local work. Migrate old SSH origins manually if appropriate.
+checkouts must have the expected GitHub origin, over HTTPS or SSH. They are
+preserved without pulling or resetting local work.
 
 Examples:
 
@@ -155,8 +143,11 @@ package code as your user.
 The hardware module requires an AMD CPU, exactly one NVIDIA display GPU, a
 recognizable Turing-or-newer architecture code (TU, GA, AD or GB) in `lspci`, and
 an installed supported kernel (`linux`, `linux-lts`, `linux-zen`, or
-`linux-hardened`). It selects `nvidia-open-dkms` and matching kernel headers.
-Unknown GPUs, laptop chassis, custom kernels and conflicting existing drivers
+`linux-hardened`). With only `linux` and `linux-lts` it selects the prebuilt
+`nvidia-open` and `nvidia-open-lts` modules. Other kernels, or an existing
+`nvidia-open-dkms`, select `nvidia-open-dkms` and matching kernel headers for all
+kernels. Switching between prebuilt and DKMS modules, legacy `nvidia-580xx`
+drivers, unknown GPUs, laptop chassis, custom kernels and conflicting existing drivers
 require manual configuration. This deliberately conservative check may reject
 otherwise usable hardware.
 
@@ -197,13 +188,9 @@ or hardware modules.
 ## Legacy entry points
 
 Existing script names remain wrappers. `install_base.sh` now selects only `base`.
-`install_desktop.sh` defaults to `desktop-sway`, accepts `--wayland` for Sway
-and `--xorg` for i3. Docker, audio, Bluetooth and personal
-applications require separate explicit selections. The other install and `dev/`
-scripts select their corresponding module.
-
-`build_mnu.sh` builds mnu. `build_suckless.sh` remains a compatibility
-wrapper for the same module, without component selection flags.
+`install_desktop.sh` selects `desktop-sway`. Docker, audio, Bluetooth and
+personal applications require separate explicit selections. The other install
+and `dev/` scripts select their corresponding module. `build_mnu.sh` builds mnu.
 `dev/composer.sh laravel/installer` preserves the old global-package interface.
 Wrappers accept `--dry-run`, `-h` and `--help`.
 
@@ -227,10 +214,9 @@ machine, manually verify on a disposable Arch VM:
 - A package installation failure stops before module configuration.
 - A repeated run preserves existing database data, accounts and Git work.
 - Nonempty unrecognized database directories are rejected.
-- Selecting conflicting web servers or both desktop variants stops before installation.
+- Selecting conflicting web servers stops before installation.
 - In a new Sway session, check terminal/menu, notifications, clipboard, screenshots,
   locking and portal screen sharing after configuring session startup.
-- In an i3 session, check the Xorg-specific tools and session startup.
 - Services are started only by the selected modules and their documented dependencies.
 
 GPU installation requires separate verification on supported physical hardware.

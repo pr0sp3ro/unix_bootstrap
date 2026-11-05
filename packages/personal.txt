@@ -1,4 +1,5 @@
 stow
+tmux
 firefox
 lxappearance
 mpc
